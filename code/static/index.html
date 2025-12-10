@@ -218,10 +218,8 @@
         document.getElementById("nav-section").style.display = "block";
         document.getElementById("login-form").style.display = "none";
         document.getElementById("login-info").style.display = "block";
-        applyRoleVisibility();
-        loadCerts();
-        loadArtifacts();
-        loadPublicKey(); // показать, есть ли активный публичный ключ
+        applyRoleVisibility(true);
+        // Загрузка данных отложена до выбора экрана
       } else {
         document.getElementById("auth-status").innerText = data.detail || "Ошибка";
       }
@@ -441,6 +439,8 @@
           if (pem) links += `<button onclick="downloadArtifact('${pem.id}','pem')">PEM</button> `;
           if (p12) links += `<button onclick="downloadArtifact('${p12.id}','p12')">P12</button>`;
         }
+        tr.onclick = () => selectRequest(r.id);
+        tr.style.cursor = "pointer";
         tr.innerHTML = `
           <td>${r.id}</td>
           <td>${r.profile}</td>
@@ -450,6 +450,29 @@
           <td>${links}</td>
         `;
         tbody.appendChild(tr);
+      });
+    }
+
+    let selectedReqId = null;
+    let selectedCertId = null;
+
+    function selectRequest(id) {
+      selectedReqId = id;
+      document.getElementById("req-id-action").value = id;
+      Array.from(document.querySelectorAll("#req-table tr")).forEach(tr => tr.classList.remove("row-selected"));
+      const rows = Array.from(document.querySelectorAll("#req-table tr"));
+      rows.forEach(tr => {
+        if (tr.innerText.includes(id)) tr.classList.add("row-selected");
+      });
+    }
+
+    function selectCert(id) {
+      selectedCertId = id;
+      document.getElementById("cert-id").value = id;
+      Array.from(document.querySelectorAll("#cert-table tr")).forEach(tr => tr.classList.remove("row-selected"));
+      const rows = Array.from(document.querySelectorAll("#cert-table tr"));
+      rows.forEach(tr => {
+        if (tr.innerText.includes(id)) tr.classList.add("row-selected");
       });
     }
 
@@ -463,6 +486,7 @@
       document.getElementById("req-result").innerText = JSON.stringify(data, null, 2);
       loadCertRequests();
       loadCerts();
+      selectRequest(id);
     }
 
     async function rejectRequest() {
@@ -473,6 +497,7 @@
       });
       document.getElementById("req-result").innerText = JSON.stringify(await res.json(), null, 2);
       loadCertRequests();
+      selectRequest(id);
     }
 
     async function loadCerts() {
@@ -487,6 +512,8 @@
       data.forEach(c => {
         const tr = document.createElement("tr");
         const statusClass = c.status ? `status-${c.status}` : "status-unknown";
+        tr.onclick = () => selectCert(c.id);
+        tr.style.cursor = "pointer";
         tr.innerHTML = `
           <td>${c.id}</td>
           <td>${c.serial || ""}</td>
@@ -510,9 +537,18 @@
       hideScreens();
       const el = document.getElementById(`screen-${name}`);
       if (el && (el.dataset.allowed === "1" || !el.dataset.allowed)) el.style.display = "block";
+      if (name === "certs") {
+        loadCerts();
+      } else if (name === "artifacts") {
+        loadArtifacts();
+      } else if (name === "req") {
+        loadCertRequests();
+      } else if (name === "encrypt") {
+        loadPublicKey();
+      }
     }
 
-    function applyRoleVisibility() {
+    function applyRoleVisibility(resetScreens = false) {
       const role = currentRole || "user";
       document.querySelectorAll(".screen").forEach(s => {
         const required = s.dataset.role || "user";
@@ -520,13 +556,8 @@
         s.style.display = "none";
         s.dataset.allowed = allowed ? "1" : "0";
       });
-      // show default screen per role
-      if (role === "admin") {
-        showScreen("certs");
-      } else if (role === "officer") {
-        showScreen("req");
-      } else {
-        showScreen("req");
+      if (resetScreens) {
+        hideScreens();
       }
       // Buttons visibility
       document.querySelectorAll(".btn-staff").forEach(btn => {
@@ -537,6 +568,11 @@
     document.addEventListener("DOMContentLoaded", () => {
       hideScreens();
     });
+
+    // простой стиль для выделения
+    const style = document.createElement("style");
+    style.innerHTML = `.row-selected { background: #e0f2fe; }`;
+    document.head.appendChild(style);
 
     async function downloadCert(id, kind) {
       const res = await fetch("/api/artifacts", { headers: headers() });
