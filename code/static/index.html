@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>CA MVP UI</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f7f8fa; margin: 0; padding: 0; }
+    header { background: #1f2933; color: #fff; padding: 12px 16px; }
+    main { padding: 16px; max-width: 1100px; margin: 0 auto; }
+    h2 { margin-top: 24px; }
+    section { background: #fff; padding: 12px 16px; margin-bottom: 12px; border-radius: 6px; box-shadow: 0 1px 2px rgba(0,0,0,0.08); }
+    label { display: block; margin: 6px 0 2px; font-weight: 600; }
+    input, textarea, button { padding: 8px; margin-bottom: 8px; }
+    input, textarea { width: 100%; box-sizing: border-box; }
+    button { cursor: pointer; }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+    .half { flex: 1 1 48%; min-width: 280px; }
+    pre { background: #eef2f5; padding: 8px; border-radius: 4px; white-space: pre-wrap; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 8px; }
+    .card { background: #f0f4f8; padding: 8px; border-radius: 4px; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border: 1px solid #d9dde2; padding: 6px; text-align: left; }
+    th { background: #f0f4f8; }
+    .status-issued { color: green; }
+    .status-revoked { color: red; }
+    .status-reissued { color: #d97706; }
+    .status-unknown { color: #6b7280; }
+    .status-pending { color: #2563eb; }
+    .status-approved { color: #15803d; }
+    .status-rejected { color: #b91c1c; }
+    .error { color: red; font-weight: 600; }
+    .ok { color: green; font-weight: 600; }
+    .role-hint { font-weight: 600; color: #374151; }
+    .logout { background: #ef4444; color: #fff; border: none; padding: 8px 12px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <header><strong>CA/Envelope MVP</strong> — быстрый UI</header>
+  <main>
+    <section>
+      <h2>Авторизация</h2>
+      <div id="login-form">
+        <label>Имя пользователя</label>
+        <input id="login-username" placeholder="admin" />
+        <label>Пароль</label>
+        <input id="login-password" type="password" placeholder="admin" />
+        <button onclick="doLogin()">Войти</button>
+      </div>
+      <div id="login-info" style="display:none;">
+        <div id="auth-status"></div>
+        <button class="logout" onclick="doLogout()">Выйти</button>
+      </div>
+      <div class="role-hint">Демо: admin/admin (администратор), officer/officer (офицер), user/user (пользователь)</div>
+    </section>
+
+    <section id="nav-section" style="display:none;">
+      <h2>Навигация</h2>
+      <div class="grid">
+        <button class="btn-staff" onclick="showScreen('certs')">Сертификаты</button>
+        <button class="btn-staff" onclick="showScreen('status')">Статус/Отзыв</button>
+        <button onclick="showScreen('req')">Запрос cert</button>
+        <button onclick="showScreen('encrypt')">Шифрование</button>
+        <button onclick="showScreen('artifacts')">Файлы</button>
+      </div>
+    </section>
+
+    <section class="screen" id="screen-certs" data-role="staff">
+      <h2>Выпуск сертификата</h2>
+      <div class="row">
+        <div class="half">
+          <label>Профиль</label>
+          <select id="cert-profile">
+            <option value="подпись">Подпись</option>
+            <option value="шифрование">Шифрование</option>
+            <option value="VPN">VPN</option>
+          </select>
+          <label>CN (имя/ФИО)</label>
+          <input id="cert-cn" placeholder="Иван Иванов" />
+          <label>Email (опционально)</label>
+          <input id="cert-email" placeholder="user@example.com" />
+          <label>Серверная генерация?</label>
+          <select id="cert-generate">
+            <option value="true">Да (PKCS#12)</option>
+            <option value="false">Нет (CSR обязателен)</option>
+          </select>
+          <label>Пароль P12 (если генерация)</label>
+          <input id="cert-p12pass" placeholder="secret" />
+          <button onclick="issueCert()">Выдать</button>
+        </div>
+        <div class="half">
+          <label>CSR (если клиентская генерация)</label>
+          <textarea id="cert-csr" rows="8" placeholder="-----BEGIN CERTIFICATE REQUEST-----"></textarea>
+        </div>
+      </div>
+      <pre id="cert-result"></pre>
+      <button onclick="loadCerts()">Обновить список</button>
+      <table id="cert-table">
+        <thead>
+          <tr><th>ID</th><th>Serial</th><th>Профиль</th><th>Статус</th><th>Создан</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <section class="screen" id="screen-status" data-role="staff">
+      <h2>Статус сертификата / Отзыв / Перевыпуск</h2>
+      <div class="row">
+        <div class="half">
+          <label>ID сертификата</label>
+          <input id="cert-id" placeholder="uuid" />
+          <button onclick="renewCert()">Перевыпустить</button>
+          <button onclick="revokeCert()">Отозвать</button>
+        </div>
+        <div class="half">
+          <label>Серийный номер</label>
+          <input id="cert-serial" placeholder="serial" />
+          <button onclick="statusCert()">Проверить статус</button>
+        </div>
+      </div>
+      <pre id="cert-actions"></pre>
+    </section>
+
+    <section class="screen" id="screen-req" data-role="user">
+      <h2>Запрос сертификата</h2>
+      <label>Профиль</label>
+      <select id="req-profile">
+        <option value="подпись">Подпись</option>
+        <option value="шифрование">Шифрование</option>
+        <option value="VPN">VPN</option>
+      </select>
+      <label>Комментарий (опционально)</label>
+      <input id="req-comment" placeholder="Зачем нужен сертификат" />
+      <label>CSR (если есть)</label>
+      <textarea id="req-csr" rows="6" placeholder="-----BEGIN CSR-----"></textarea>
+      <button onclick="createCertRequest()">Отправить запрос</button>
+      <button onclick="loadCertRequests()">Обновить список</button>
+      <pre id="req-result"></pre>
+      <table id="req-table">
+        <thead><tr><th>ID</th><th>Профиль</th><th>Статус</th><th>Пользователь</th><th>Создан</th><th>Ссылки</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="btn-staff" style="margin-top:8px;">
+        <label>Действия (для офицера/админа): ID запроса</label>
+        <input id="req-id-action" placeholder="id" />
+        <button onclick="approveRequest()">Одобрить и выдать</button>
+        <button onclick="rejectRequest()">Отклонить</button>
+      </div>
+    </section>
+    <section class="screen" id="screen-encrypt" data-role="user">
+      <h2>Шифрование / Расшифрование</h2>
+      <div class="card">
+        <h3>Мой публичный ключ (для входящих шифрованных файлов)</h3>
+        <label>PEM ключ</label>
+        <textarea id="pubkey-pem" rows="6" placeholder="-----BEGIN PUBLIC KEY-----"></textarea>
+        <label>Метка (необязательно, например серийный номер сертификата)</label>
+        <input id="pubkey-label" placeholder="label/serial" />
+        <div>
+          <button onclick="savePublicKey()">Сохранить ключ</button>
+          <button onclick="loadPublicKey()">Показать текущий</button>
+        </div>
+        <pre id="pubkey-status"></pre>
+      </div>
+      <label>Файл для шифрования</label>
+      <input id="enc-file" type="file" />
+      <label>Получатели (через запятую)</label>
+      <input id="enc-recipients" placeholder="user1,user2" />
+      <button onclick="encrypt()">Зашифровать</button>
+      <pre id="enc-result"></pre>
+      <label>ID пакета</label>
+      <input id="enc-id" placeholder="envelope id" />
+      <button onclick="getEnvelope()">Получить метаданные</button>
+      <button onclick="downloadEnvelope()">Скачать зашифрованный файл</button>
+      <pre id="enc-meta"></pre>
+      <label>Серийный номер вашего сертификата (если нескольких ключей)</label>
+      <input id="dec-serial" placeholder="серийный номер сертификата" />
+      <label>Закрытый ключ PEM</label>
+      <textarea id="dec-privkey" rows="6" placeholder="-----BEGIN PRIVATE KEY-----"></textarea>
+      <label>Пароль (если ключ защищен)</label>
+      <input id="dec-password" type="password" placeholder="пароль к ключу" />
+      <button onclick="decryptEnvelope()">Расшифровать</button>
+      <pre id="dec-result"></pre>
+    </section>
+
+    <section class="screen" id="screen-artifacts" data-role="user">
+      <h2>Файлы</h2>
+      <button onclick="loadArtifacts()">Показать</button>
+      <button onclick="downloadFixed('chain')">Скачать цепочку</button>
+      <button onclick="downloadFixed('crl')">Скачать CRL</button>
+      <div id="artifacts" class="grid"></div>
+    </section>
+  </main>
+
+  <script>
+    let token = null;
+    let currentUser = null;
+    let currentRole = null; // admin/officer/user
+
+    function headers() {
+      const h = { "Content-Type": "application/json" };
+      if (token) h["Authorization"] = "Bearer " + token;
+      return h;
+    }
+
+    async function doLogin() {
+      const username = document.getElementById("login-username").value;
+      const password = document.getElementById("login-password").value;
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        token = data.access_token;
+        currentUser = username;
+        currentRole = username === "admin" ? "admin" : (username === "officer" ? "officer" : "user");
+        document.getElementById("auth-status").innerText = `Вошли как ${username}`;
+        document.getElementById("nav-section").style.display = "block";
+        document.getElementById("login-form").style.display = "none";
+        document.getElementById("login-info").style.display = "block";
+        applyRoleVisibility();
+        loadCerts();
+        loadArtifacts();
+        loadPublicKey(); // показать, есть ли активный публичный ключ
+      } else {
+        document.getElementById("auth-status").innerText = data.detail || "Ошибка";
+      }
+    }
+
+    function doLogout() {
+      token = null;
+      currentUser = null;
+      currentRole = null;
+      currentToken = null;
+      document.getElementById("auth-status").innerText = "Гость";
+      document.getElementById("nav-section").style.display = "none";
+      document.getElementById("login-form").style.display = "block";
+      document.getElementById("login-info").style.display = "none";
+      hideScreens();
+    }
+
+    async function issueCert() {
+      const profile = document.getElementById("cert-profile").value;
+      const cn = document.getElementById("cert-cn").value;
+      const email = document.getElementById("cert-email").value;
+      const csr = document.getElementById("cert-csr").value;
+      const generate = document.getElementById("cert-generate").value === "true";
+      const p12pass = document.getElementById("cert-p12pass").value || null;
+      const subject = cn ? { cn, email } : null;
+      const payload = { profile, csr_pem: csr || null, subject, generate_key: generate, pkcs12_password: p12pass };
+      const res = await fetch("/api/certs", {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify(payload),
+      });
+      document.getElementById("cert-result").innerText = JSON.stringify(await res.json(), null, 2);
+      loadCerts();
+    }
+
+    async function renewCert() {
+      const id = document.getElementById("cert-id").value;
+      const profile = document.getElementById("cert-profile").value;
+      const res = await fetch(`/api/certs/${id}/renew`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ profile }),
+      });
+      document.getElementById("cert-actions").innerText = JSON.stringify(await res.json(), null, 2);
+    }
+
+    async function revokeCert() {
+      const id = document.getElementById("cert-id").value;
+      const res = await fetch(`/api/certs/${id}/revoke`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ reason: "unspecified" }),
+      });
+      document.getElementById("cert-actions").innerText = JSON.stringify(await res.json(), null, 2);
+    }
+
+    async function statusCert() {
+      const serial = document.getElementById("cert-serial").value;
+      const res = await fetch(`/api/status/${serial}`, { headers: headers() });
+      document.getElementById("cert-actions").innerText = JSON.stringify(await res.json(), null, 2);
+    }
+
+    function fileToBase64(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result.split(",")[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    async function encrypt() {
+      const fileInput = document.getElementById("enc-file");
+      if (!fileInput.files || !fileInput.files[0]) {
+        document.getElementById("enc-result").innerText = "Выберите файл";
+        return;
+      }
+      const recipientsRaw = document.getElementById("enc-recipients").value;
+      if (!recipientsRaw.trim()) {
+        document.getElementById("enc-result").innerText = "Укажите получателей";
+        return;
+      }
+      const b64 = await fileToBase64(fileInput.files[0]);
+      const recipients = recipientsRaw.split(",").map(s => s.trim()).filter(Boolean);
+      const payload = {
+        filename: fileInput.files[0].name,
+        content_b64: b64,
+        recipients,
+        direct_encrypt: true,
+      };
+      const res = await fetch("/api/envelope", {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify(payload),
+      });
+      document.getElementById("enc-result").innerText = JSON.stringify(await res.json(), null, 2);
+    }
+
+    async function getEnvelope() {
+      const id = document.getElementById("enc-id").value;
+      const res = await fetch(`/api/envelope/${id}`, { headers: headers() });
+      const data = await res.json();
+      if (!res.ok) {
+        document.getElementById("enc-meta").innerText = JSON.stringify(data, null, 2);
+        return;
+      }
+      renderEnvelopeMeta(data);
+    }
+
+    async function downloadEnvelope() {
+      const id = document.getElementById("enc-id").value;
+      if (!id) {
+        alert("Укажите ID пакета");
+        return;
+      }
+      const res = await fetch(`/api/envelope/${id}/download`, { headers: headers() });
+      if (!res.ok) {
+        alert("Не удалось скачать файл");
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${id}.enc`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    async function decryptEnvelope() {
+      const id = document.getElementById("enc-id").value;
+      const serial = document.getElementById("dec-serial").value || null;
+      const privkey = document.getElementById("dec-privkey").value;
+      const password = document.getElementById("dec-password").value || null;
+      if (!id || !privkey) {
+        document.getElementById("dec-result").innerText = "Укажите ID и закрытый ключ";
+        return;
+      }
+      const payload = { recipient_serial: serial, private_key_pem: privkey, private_key_password: password };
+      const res = await fetch(`/api/envelope/${id}/decrypt`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        document.getElementById("dec-result").innerText = JSON.stringify(data, null, 2);
+        return;
+      }
+      document.getElementById("dec-result").innerText = JSON.stringify(data, null, 2);
+    }
+
+    function renderEnvelopeMeta(meta) {
+      const keys = Array.isArray(meta.keys) ? meta.keys : [];
+      let html = `<strong>ID:</strong> ${meta.id}<br/><strong>Файл:</strong> ${meta.filename}<br/><strong>Получатели:</strong> ${(meta.recipients || []).join(", ")}`;
+      if (keys.length) {
+        html += `<br/><strong>Ключи:</strong><ul>`;
+        keys.forEach(k => {
+          html += `<li>${k.recipient || "получатель"} — serial: ${k.cert_serial || "-"} </li>`;
+        });
+        html += `</ul>`;
+      }
+      document.getElementById("enc-meta").innerHTML = html;
+    }
+
+    async function loadArtifacts() {
+      const res = await fetch("/api/artifacts", { headers: headers() });
+      const data = await res.json();
+      const container = document.getElementById("artifacts");
+      container.innerHTML = "";
+      (data || []).forEach(a => {
+        const div = document.createElement("div");
+        div.className = "card";
+        div.innerHTML = `<strong>${a.kind}</strong><br/>${a.description || ""}<br/>${a.url || ""}<br/>`;
+        const btn = document.createElement("button");
+        btn.innerText = "Скачать";
+        btn.onclick = () => downloadArtifact(a.id, a.kind);
+        div.appendChild(btn);
+        container.appendChild(div);
+      });
+    }
+
+    async function createCertRequest() {
+      const profile = document.getElementById("req-profile").value;
+      const comment = document.getElementById("req-comment").value;
+      const csr = document.getElementById("req-csr").value;
+      const res = await fetch("/api/requests/certs", {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ profile, csr_pem: csr || null, comment: comment || null }),
+      });
+      document.getElementById("req-result").innerText = JSON.stringify(await res.json(), null, 2);
+      loadCertRequests();
+    }
+
+    async function loadCertRequests() {
+      const res = await fetch("/api/requests/certs", { headers: headers() });
+      const data = await res.json();
+      const tbody = document.querySelector("#req-table tbody");
+      tbody.innerHTML = "";
+      if (!Array.isArray(data)) {
+        document.getElementById("req-result").innerText = JSON.stringify(data, null, 2);
+        return;
+      }
+      // загрузим артефакты для ссылок
+      const artsRes = await fetch("/api/artifacts", { headers: headers() });
+      const arts = await artsRes.json();
+      data.forEach(r => {
+        const tr = document.createElement("tr");
+        const statusClass = r.status ? `status-${r.status}` : "status-unknown";
+        let links = "";
+        if (r.status === "approved" && Array.isArray(arts)) {
+          const pem = arts.find(a => a.kind === "cert-pem" && a.url && a.url.includes(r.id));
+          const p12 = arts.find(a => a.kind === "p12" && a.url && a.url.includes(r.id));
+          if (pem) links += `<button onclick="downloadArtifact('${pem.id}','pem')">PEM</button> `;
+          if (p12) links += `<button onclick="downloadArtifact('${p12.id}','p12')">P12</button>`;
+        }
+        tr.innerHTML = `
+          <td>${r.id}</td>
+          <td>${r.profile}</td>
+          <td class="${statusClass}">${r.status}</td>
+          <td>${r.user_id}</td>
+          <td>${r.created_at || ""}</td>
+          <td>${links}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    async function approveRequest() {
+      const id = document.getElementById("req-id-action").value;
+      const res = await fetch(`/api/requests/certs/${id}/approve`, {
+        method: "POST",
+        headers: headers(),
+      });
+      const data = await res.json();
+      document.getElementById("req-result").innerText = JSON.stringify(data, null, 2);
+      loadCertRequests();
+      loadCerts();
+    }
+
+    async function rejectRequest() {
+      const id = document.getElementById("req-id-action").value;
+      const res = await fetch(`/api/requests/certs/${id}/reject`, {
+        method: "POST",
+        headers: headers(),
+      });
+      document.getElementById("req-result").innerText = JSON.stringify(await res.json(), null, 2);
+      loadCertRequests();
+    }
+
+    async function loadCerts() {
+      const res = await fetch("/api/certs", { headers: headers() });
+      const data = await res.json();
+      const tbody = document.querySelector("#cert-table tbody");
+      tbody.innerHTML = "";
+      if (!Array.isArray(data)) {
+        document.getElementById("cert-result").innerText = JSON.stringify(data, null, 2);
+        return;
+      }
+      data.forEach(c => {
+        const tr = document.createElement("tr");
+        const statusClass = c.status ? `status-${c.status}` : "status-unknown";
+        tr.innerHTML = `
+          <td>${c.id}</td>
+          <td>${c.serial || ""}</td>
+          <td>${c.profile || ""}</td>
+          <td class="${statusClass}">${c.status || ""}</td>
+          <td>${c.created_at || ""}</td>
+          <td>
+            <button onclick="downloadCert('${c.id}', 'pem')">PEM</button>
+            <button onclick="downloadCert('${c.id}', 'p12')">P12</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function hideScreens() {
+      document.querySelectorAll(".screen").forEach(s => s.style.display = "none");
+    }
+
+    function showScreen(name) {
+      hideScreens();
+      const el = document.getElementById(`screen-${name}`);
+      if (el && (el.dataset.allowed === "1" || !el.dataset.allowed)) el.style.display = "block";
+    }
+
+    function applyRoleVisibility() {
+      const role = currentRole || "user";
+      document.querySelectorAll(".screen").forEach(s => {
+        const required = s.dataset.role || "user";
+        const allowed = required === "staff" ? (role === "admin" || role === "officer") : required === "admin" ? role === "admin" : true;
+        s.style.display = "none";
+        s.dataset.allowed = allowed ? "1" : "0";
+      });
+      // show default screen per role
+      if (role === "admin") {
+        showScreen("certs");
+      } else if (role === "officer") {
+        showScreen("req");
+      } else {
+        showScreen("req");
+      }
+      // Buttons visibility
+      document.querySelectorAll(".btn-staff").forEach(btn => {
+        btn.style.display = (role === "admin" || role === "officer") ? "inline-block" : "none";
+      });
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      hideScreens();
+    });
+
+    async function downloadCert(id, kind) {
+      const res = await fetch("/api/artifacts", { headers: headers() });
+      const data = await res.json();
+      const targetKind = kind === "pem" ? "cert-pem" : "p12";
+      const art = (data || []).find(a => a.kind === targetKind && (a.url || "").includes(id));
+      if (!art) {
+        alert("Артефакт не найден");
+        return;
+      }
+      await downloadArtifact(art.id, art.kind);
+    }
+
+    async function downloadArtifact(artifactId, kind) {
+      const res = await fetch(`/api/artifacts/${artifactId}/download`, {
+        headers: headers(),
+      });
+      if (!res.ok) {
+        alert("Не удалось скачать");
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const ext = kind === "p12" ? "p12" : "pem";
+      a.download = `${artifactId}.${ext}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    async function downloadFixed(kind) {
+      const res = await fetch("/api/artifacts", { headers: headers() });
+      const data = await res.json();
+      const art = (data || []).find(a => a.kind === kind);
+      if (!art) {
+        alert("Артефакт не найден");
+        return;
+      }
+      await downloadArtifact(art.id, kind);
+    }
+
+    async function savePublicKey() {
+      const pem = document.getElementById("pubkey-pem").value;
+      const label = document.getElementById("pubkey-label").value || null;
+      if (!pem) {
+        document.getElementById("pubkey-status").innerText = "Вставьте публичный ключ в PEM";
+        return;
+      }
+      const res = await fetch("/api/users/me/public-key", {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ pem, label }),
+      });
+      const data = await res.json();
+      document.getElementById("pubkey-status").innerText = JSON.stringify(data, null, 2);
+    }
+
+    async function loadPublicKey() {
+      const res = await fetch("/api/users/me/public-key", { headers: headers() });
+      const data = await res.json();
+      if (!res.ok) {
+        document.getElementById("pubkey-status").innerText = JSON.stringify(data, null, 2);
+        return;
+      }
+      document.getElementById("pubkey-status").innerText = JSON.stringify(data, null, 2);
+    }
+  </script>
+</body>
+</html>
