@@ -32,6 +32,14 @@ def create_app() -> FastAPI:
     app.include_router(requests.router)
     app.mount("/ui", StaticFiles(directory=static_dir, html=True), name="ui")
 
+    @app.middleware("http")
+    async def no_cache_headers(request, call_next):
+        response = await call_next(request)
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        return response
+
     @app.get("/health", tags=["health"])
     def health() -> dict[str, str]:
         """Simple liveness probe."""

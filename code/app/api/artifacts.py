@@ -78,4 +78,12 @@ def download_artifact(
         logging.error("artifact_download_failed artifact_id=%s url=%s error=%s", artifact_id, a.url, exc.detail)
         raise
     logging.info("artifact_download artifact_id=%s path=%s", artifact_id, path)
-    return FileResponse(path, filename=path.name)
+    return FileResponse(
+        path,
+        filename=path.name,
+        headers={
+            "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        },
+    )
