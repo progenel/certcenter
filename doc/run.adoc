@@ -1,0 +1,45 @@
+:toc-title: Содержание
+= Запуск приложения (FastAPI/Uvicorn)
+:toc:
+:doctype: article
+
+== Общие принципы
+* Выполнять команды из каталога `code/`, чтобы импорты `app.*` находились.
+* Активировать venv: `source ~/venv/etucrypto/bin/activate`.
+* Для dev-режима можно использовать `--reload` (только один воркер).
+
+== Uvicorn напрямую
+* Базовый запуск:
+  `uvicorn app.main:app --host 0.0.0.0 --port 8000`
+* Dev с автообновлением:
+  `uvicorn app.main:app --host 127.0.0.1 --port 8090 --reload`
+* С уровнем логов/без access-log:
+  `uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level info --no-access-log`
+* Несколько воркеров (без reload):
+  `uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4`
+* Через переменные окружения для примера:
+  `HOST=0.0.0.0 PORT=9000 uvicorn app.main:app`
+
+Полезные флаги uvicorn:
+* `--reload` — авто-перезапуск при изменениях (dev).
+* `--workers N` — число воркеров (prod, без reload).
+* `--log-level {critical,error,warning,info,debug,trace}` — уровень логов.
+* `--no-access-log` — отключить access-log.
+* `--proxy-headers` + `--forwarded-allow-ips '*'` — если приложение за реверс-прокси.
+
+== Gunicorn + uvicorn worker (продакшен)
+* Стандарт:
+  `gunicorn -k uvicorn.workers.UvicornWorker -b 0.0.0.0:8000 app.main:app`
+* С несколькими воркерами:
+  `gunicorn -k uvicorn.workers.UvicornWorker -b 0.0.0.0:8000 --workers 4 app.main:app`
+
+== Запуск через `python -m app`
+Поддерживается точка входа `python -m app` (в `app/__main__.py` используется uvicorn.run).
+Примеры:
+* `python -m app` (по умолчанию host/port из настроек).
+* `HOST=0.0.0.0 PORT=9000 python -m app` (если обработка env настроена в `__main__`).
+
+== Рекомендации
+* В продакшене не использовать `--reload`; фиксировать host/port, запускать через сервисный менеджер (systemd/docker) или gunicorn.
+* Для разработки удобно `--reload --host 127.0.0.1 --port 8090`, чтобы не мешать другим инстансам.
+* При работе за реверс-прокси включать `--proxy-headers` и настраивать forwarded-allow-ips.
