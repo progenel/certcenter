@@ -30,7 +30,9 @@ def list_artifacts(user=Depends(require_token), db: Session = Depends(get_db)) -
         ArtifactResponse(
             id=a.id,
             kind=a.kind,
-            url=a.url,
+            url=Path(a.url).name if a.url else "",
+            filename=Path(a.url).name if a.url else "",
+            owner_user_id=a.owner_user_id,
             created_at=a.created_at,
             description=a.description,
         )

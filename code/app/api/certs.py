@@ -54,10 +54,19 @@ def _issue_cert_internal(
     pem_path = Path(settings.artifacts_path) / f"{cert_id}.pem"
     pem_path.write_bytes(pem_bytes)
     p12_path = None
+    key_path = None
     if payload.generate_key and key:
         p12_bytes = create_pkcs12(cert_id, signed_cert, key)
         p12_path = Path(settings.artifacts_path) / f"{cert_id}.p12"
         p12_path.write_bytes(p12_bytes)
+        key_path = Path(settings.artifacts_path) / f"{cert_id}-key.pem"
+        key_path.write_bytes(
+            key.private_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PrivateFormat.TraditionalOpenSSL,
+                encryption_algorithm=serialization.NoEncryption(),
+            )
+        )
     cert = Certificate(
         id=cert_id,
         serial=hex(signed_cert.serial_number)[2:],
@@ -85,6 +94,17 @@ def _issue_cert_internal(
                 kind="p12",
                 url=str(p12_path),
                 description="PKCS#12 bundle",
+                owner_user_id=owner_user_id or actor.id if actor else None,
+                created_at=datetime.utcnow(),
+            )
+        )
+    if key_path:
+        db.add(
+            Artifact(
+                id=str(uuid4()),
+                kind="key-pem",
+                url=str(key_path),
+                description="Private key PEM (server-side generation)",
                 owner_user_id=owner_user_id or actor.id if actor else None,
                 created_at=datetime.utcnow(),
             )

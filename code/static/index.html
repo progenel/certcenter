@@ -395,7 +395,9 @@
       (data || []).forEach(a => {
         const div = document.createElement("div");
         div.className = "card";
-        div.innerHTML = `<strong>${a.kind}</strong><br/>${a.description || ""}<br/>${a.url || ""}<br/>`;
+        const owner = a.owner_user_id ? `Владелец: ${a.owner_user_id}<br/>` : "";
+        const fname = a.filename || a.url || "";
+        div.innerHTML = `<strong>${a.kind}</strong><br/>${a.description || ""}<br/>${owner}${fname}<br/>`;
         const btn = document.createElement("button");
         btn.innerText = "Скачать";
         btn.onclick = () => downloadArtifact(a.id, a.kind);
@@ -578,7 +580,7 @@
       const res = await fetch("/api/artifacts", { headers: headers() });
       const data = await res.json();
       const targetKind = kind === "pem" ? "cert-pem" : "p12";
-      const art = (data || []).find(a => a.kind === targetKind && (a.url || "").includes(id));
+      const art = (data || []).find(a => a.kind === targetKind && (a.filename || a.url || "").includes(id));
       if (!art) {
         alert("Артефакт не найден");
         return;
