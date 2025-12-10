@@ -1,0 +1,10 @@
+@startuml
+!include plantuml.conf
+skinparam defaultFontName "DejaVu Sans, Noto Sans, Arial"
+
+rectangle "Dashboard" {
+  rectangle "Cards:\n- Certificates\n- Chain/CRL\n- Encryption\n- Audit\n- Help" as Cards
+  rectangle "Quick start:\n1) Get a certificate → [Request]\n2) Download chain/CRL\n3) Encrypt a file" as Quick
+}
+
+@enduml

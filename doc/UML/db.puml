@@ -1,0 +1,109 @@
+@startuml
+!include plantuml.conf
+!define Table(x) class x << (T,#FFAAAA) >>
+hide circle
+skinparam linetype ortho
+
+Table(Users) {
+  *id : uuid
+  --
+  username : text
+  full_name : text
+  password_hash : text
+  is_active : bool
+  created_at : datetime
+}
+
+Table(Roles) {
+  *id : uuid
+  name : text
+  description : text
+}
+
+Table(UserRoles) {
+  *user_id : uuid
+  *role_id : uuid
+}
+
+Table(CertRequests) {
+  *id : uuid
+  user_id : uuid
+  profile : text
+  csr_pem : text
+  status : text
+  comment : text
+  created_at : datetime
+}
+
+Table(Certificates) {
+  *id : uuid
+  user_id : uuid
+  serial : text
+  profile : text
+  status : text
+  pem : text
+  created_at : datetime
+  revoked_at : datetime
+}
+
+Table(Artifacts) {
+  *id : uuid
+  kind : text
+  url : text
+  description : text
+  owner_user_id : uuid
+  created_at : datetime
+}
+
+Table(Envelopes) {
+  *id : uuid
+  filename : text
+  recipients : text
+  storage_url : text
+  direct_encrypt : bool
+  created_at : datetime
+}
+
+Table(EnvelopeKeys) {
+  *id : uuid
+  envelope_id : uuid
+  recipient_user_id : uuid
+  recipient_serial : text
+  recipient_label : text
+  encrypted_key_b64 : text
+}
+
+Table(UserPublicKeys) {
+  *id : uuid
+  user_id : uuid
+  pem : text
+  label : text
+  is_active : bool
+  created_at : datetime
+}
+
+Table(AuditEvents) {
+  *id : uuid
+  actor : text
+  action : text
+  object_type : text
+  object_id : text
+  details : text
+  created_at : datetime
+}
+
+Users "1" -- "0..*" Certificates : owns
+Users "1" -- "0..*" CertRequests : requests
+Users "1" -- "0..*" Envelopes : uploads
+Users "1" -- "0..*" UserRoles
+Roles "1" -- "0..*" UserRoles
+Certificates "1" -- "0..*" Artifacts : exports
+Envelopes "1" -- "0..*" Artifacts : stores
+Envelopes "1" -- "0..*" EnvelopeKeys : keys
+EnvelopeKeys .. Users : recipient
+UserPublicKeys .. Users : belongs to
+AuditEvents .. Users : actor
+AuditEvents .. Certificates : on
+AuditEvents .. Envelopes : on
+
+@enduml

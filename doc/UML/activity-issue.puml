@@ -1,0 +1,21 @@
+@startuml
+!include plantuml.conf
+start
+:User or officer\ncreates request (CSR or server-side);
+:Check profile/policy\n(EKU, DN, validity);
+if (Profile ok?) then (yes)
+  if (Server-side keygen?) then (yes)
+    :Generate key + certificate;
+    :Build PKCS#12\n(with password);
+  else (no)
+    :Sign CSR with CA cert;
+  endif
+  :Save metadata to DB;
+  :Publish chain/CRL if needed;
+  :Write audit event;
+  :Deliver artifacts\n(PEM/PKCS#12/chain);
+else (no)
+  :Reject request\n(log/audit);
+endif
+stop
+@enduml

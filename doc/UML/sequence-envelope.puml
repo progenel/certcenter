@@ -1,0 +1,28 @@
+@startuml
+!include plantuml.conf
+title Sequence: Envelope Encryption/Decryption
+
+actor User
+participant "UI/CLI" as UI
+participant "API (FastAPI)" as API
+participant "Crypto/AES-GCM" as Crypto
+participant "DB" as DB
+participant "Storage (local)" as Storage
+
+== Encrypt ==
+User -> UI : Upload file, select recipients
+UI -> API : POST /api/envelope (file, recipients=usernames/serial/labels)
+API -> Crypto : Generate AES-GCM key+nonce, encrypt file
+API -> Crypto : Wrap AES key with recipients' public keys\n(certificate or uploaded public key)
+Crypto -> Storage : Save encrypted file (nonce + ciphertext)
+API -> DB : Save envelope + encrypted keys per recipient
+API -> User : Return id, download link, recipients/keys metadata
+
+== Decrypt ==
+User -> UI : Request package
+UI -> API : GET /api/envelope/{id} (metadata)
+UI -> API : POST /api/envelope/{id}/decrypt (private key PEM, serial/label)
+API -> DB : Find encrypted key for recipient
+API -> Crypto : Unwrap AES key with user's private key -> decrypt file (AES-GCM)
+API -> User : Return plaintext (base64)
+@enduml

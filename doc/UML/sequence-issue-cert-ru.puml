@@ -1,0 +1,29 @@
+@startuml
+!include plantuml.conf
+title Последовательность: Выпуск сертификата (серверная генерация ключа)
+
+actor "Пользователь" as User
+participant "UI/CLI" as UI
+participant "API (FastAPI)" as API
+participant "Политики" as Policy
+participant "Издатель (CA)" as Issuer
+participant "БД" as DB
+participant "Хранилище (локально)" as Storage
+participant "CRL сервис" as CRL
+
+User -> UI : Запрос cert (профиль, CN/subject)
+UI -> API : POST /api/certs
+API -> Policy : Проверка профиля, EKU, TTL, DN
+API -> Issuer : Генерация пары ключей (если server-side)\nCSR и подпись cert
+Issuer -> Storage : Сохранить PEM (и PKCS#12 при генерации)
+API -> DB : Сохранить метаданные (serial, владелец, ссылки)
+API -> User : Вернуть серийный номер и ссылки на PEM/P12
+
+== Отзыв ==
+User -> UI : Запрашивает отзыв
+UI -> API : POST /api/certs/{id}/revoke
+API -> DB : Пометить как revoked
+API -> CRL : Пересобрать CRL
+CRL -> Storage : Сохранить обновленный CRL
+API -> User : Подтвердить отзыв
+@enduml

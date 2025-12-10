@@ -1,0 +1,55 @@
+@startuml
+!include plantuml.conf
+title C4: Диаграмма контейнеров
+
+actor "Администратор/Офицер" as Admin
+actor "Пользователь" as User
+actor "Аудитор" as Auditor
+
+package "Внешние системы" {
+  rectangle "LDAP/AD" as LDAP
+  rectangle "OpenVPN" as VPN
+  rectangle "SIEM/Алерты" as SIEM
+}
+
+package "UI/CLI" {
+  rectangle "Web UI" as UI
+  rectangle "CLI" as CLI
+}
+
+node "API (FastAPI)" as API
+node "CA Core" as CA {
+  component "Issuer\n(CA/CRL)" as Issuer
+  component "Policy Engine" as Policy
+  component "Audit Logger" as Audit
+}
+
+node "Crypto/Envelope" as Crypto
+
+node "Хранилище" as Storage {
+  database "SQLite" as DB
+  folder "Локальные файлы\n(CRL/chain/пакеты)" as Files
+}
+
+Admin --> UI : управление пользователями/ролями\nполитики cert
+User --> UI : запрос cert\nшифрование/расшифровка
+Auditor --> UI : аудит/статусы
+Admin --> CLI
+User --> CLI
+
+UI --> API
+CLI --> API
+
+API --> Issuer : issue/revoke/renew
+API --> Policy
+API --> Audit
+API --> Crypto : encrypt/decrypt
+API --> DB : метаданные
+API --> LDAP : Auth (опционально в MVP)
+API --> SIEM : события (опционально)
+VPN --> API : получить chain/CRL
+
+Crypto --> Files : хранить пакеты
+Issuer --> Files : chain/CRL
+API --> Files : скачивание chain/CRL
+@enduml

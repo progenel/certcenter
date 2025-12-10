@@ -1,0 +1,42 @@
+@startuml
+!include plantuml.conf
+left to right direction
+
+actor "Администратор" as Admin
+actor "Офицер безопасности" as Officer
+actor "Пользователь" as User
+actor "Аудитор" as Auditor
+
+rectangle "Система" {
+  usecase "UC-01 Выпустить сертификат\n(CSR/серверная генерация)" as UC01
+  usecase "UC-02 Отозвать сертификат\n(обновить CRL)" as UC02
+  usecase "UC-03 Перевыпустить сертификат\n(новый serial/даты)" as UC03
+  usecase "UC-04 Скачать цепочку/CRL" as UC04
+  usecase "UC-05 Зашифровать файл\n(на ключ(и) получателей)" as UC05
+  usecase "UC-06 Расшифровать файл\n(своим ключом)" as UC06
+  usecase "UC-07 Управлять пользователями\nи ролями" as UC07
+  usecase "UC-08 Настроить профили\nсертификатов (EKU/DN/TTL)" as UC08
+  usecase "UC-09 Просматривать аудит\nи отчеты" as UC09
+}
+
+Admin --> UC07
+Admin --> UC08
+Admin --> UC09
+Admin --> UC04
+
+Officer --> UC01
+Officer --> UC02
+Officer --> UC03
+Officer --> UC08
+Officer --> UC09
+Officer --> UC04
+
+User --> UC01
+User --> UC03
+User --> UC04
+User --> UC05
+User --> UC06
+
+Auditor --> UC09
+Auditor --> UC04
+@enduml

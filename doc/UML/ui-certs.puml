@@ -1,0 +1,10 @@
+@startuml
+!include plantuml.conf
+skinparam defaultFontName "DejaVu Sans, Noto Sans, Arial"
+
+rectangle "Certificates" {
+  rectangle "Actions:\n[ Request ] [ Renew ] [ Revoke ]" as Actions
+  rectangle "Table:\nName | Serial | Profile | Status | Date\nuser1 | 01AB... | sign | issued | 2025-01-01\nuser2 | 02BC... | VPN | expiring | 2025-02-01\nuser3 | 03CD... | enc | revoked | 2024-12-01" as Table
+}
+
+@enduml

@@ -1,0 +1,109 @@
+@startuml
+!include plantuml.conf
+!define Table(x) class x << (T,#FFAAAA) >>
+hide circle
+skinparam linetype ortho
+
+Table(Пользователи) {
+  *id : uuid
+  --
+  username : text
+  ФИО : text
+  password_hash : text
+  is_active : bool
+  created_at : datetime
+}
+
+Table(Роли) {
+  *id : uuid
+  name : text
+  description : text
+}
+
+Table(РолиПользователя) {
+  *user_id : uuid
+  *role_id : uuid
+}
+
+Table(Сертификаты) {
+  *id : uuid
+  user_id : uuid
+  serial : text
+  profile : text
+  status : text
+  pem : text
+  created_at : datetime
+  revoked_at : datetime
+}
+
+Table(Артефакты) {
+  *id : uuid
+  kind : text
+  url : text
+  description : text
+  owner_user_id : uuid
+  created_at : datetime
+}
+
+Table(Конверты) {
+  *id : uuid
+  filename : text
+  recipients : text
+  storage_url : text
+  direct_encrypt : bool
+  created_at : datetime
+}
+
+Table(КлючиКонвертов) {
+  *id : uuid
+  envelope_id : uuid
+  recipient_user_id : uuid
+  recipient_serial : text
+  recipient_label : text
+  encrypted_key_b64 : text
+}
+
+Table(ПубличныеКлючи) {
+  *id : uuid
+  user_id : uuid
+  pem : text
+  label : text
+  is_active : bool
+  created_at : datetime
+}
+
+Table(ЗапросыСертификатов) {
+  *id : uuid
+  user_id : uuid
+  profile : text
+  csr_pem : text
+  status : text
+  comment : text
+  created_at : datetime
+}
+
+Table(Аудит) {
+  *id : uuid
+  actor : text
+  action : text
+  object_type : text
+  object_id : text
+  details : text
+  created_at : datetime
+}
+
+Пользователи "1" -- "0..*" Сертификаты : владеет
+Пользователи "1" -- "0..*" ЗапросыСертификатов : запрашивает
+Пользователи "1" -- "0..*" Конверты : загружает
+Пользователи "1" -- "0..*" РолиПользователя
+Роли "1" -- "0..*" РолиПользователя
+Сертификаты "1" -- "0..*" Артефакты : экспорт
+Конверты "1" -- "0..*" Артефакты : хранит
+Конверты "1" -- "0..*" КлючиКонвертов : ключи получателей
+ПубличныеКлючи .. Пользователи : принадлежит
+КлючиКонвертов .. Пользователи : получатель
+Аудит .. Пользователи : субъект
+Аудит .. Сертификаты : объект
+Аудит .. Конверты : объект
+
+@enduml

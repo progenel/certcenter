@@ -1,0 +1,42 @@
+@startuml
+!include plantuml.conf
+left to right direction
+
+actor "Administrator" as Admin
+actor "Security Officer" as Officer
+actor "User" as User
+actor "Auditor" as Auditor
+
+rectangle "Crypto & Certificate System" {
+  usecase "Issue certificate\n(CSR or server-side key)" as Issue
+  usecase "Renew/reissue\ncertificate" as Renew
+  usecase "Revoke certificate\n(update CRL)" as Revoke
+  usecase "Download chain/CRL" as Download
+  usecase "Encrypt file\n(envelope/direct)" as Encrypt
+  usecase "Decrypt file" as Decrypt
+  usecase "Manage profiles\n(EKU, validity, DN)" as Profiles
+  usecase "Manage users\nand roles" as Users
+  usecase "View audit" as Audit
+}
+
+Admin --> Users
+Admin --> Profiles
+Admin --> Audit
+Admin --> Download
+
+Officer --> Issue
+Officer --> Renew
+Officer --> Revoke
+Officer --> Profiles
+Officer --> Audit
+Officer --> Download
+
+User --> Issue
+User --> Renew
+User --> Download
+User --> Encrypt
+User --> Decrypt
+
+Auditor --> Audit
+Auditor --> Download
+@enduml

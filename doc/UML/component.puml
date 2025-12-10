@@ -1,0 +1,45 @@
+@startuml
+!include plantuml.conf
+skinparam linetype ortho
+
+rectangle "UI/CLI" as UI {
+  [Web UI]
+  [CLI]
+}
+
+rectangle "API (FastAPI)" as API {
+  [Certs API]
+  [Envelope API]
+  [Artifacts API]
+  [Auth/Audit API]
+}
+
+rectangle "CA Core" as CA {
+  [Issuer/CRL]
+  [Policy/DN/EKU]
+  [Audit]
+}
+
+rectangle "Crypto" as ENC {
+  [Encrypt/Decrypt\n(public/private key)]
+}
+
+database "SQLite\n(metadata)" as DB
+folder "Local storage\n(artifacts)" as Storage
+
+UI --> API : HTTP/JSON
+CLI --> API : HTTP/JSON
+API --> CA : internal calls
+API --> ENC : encrypt/decrypt
+API --> DB : SQL
+API --> Storage : files (CRL/chain/encrypted files)
+CA --> DB : statuses, certs
+CA --> Storage : CRL/chain
+ENC --> Storage : encrypted files
+
+note bottom
+In the MVP artifacts are stored locally (no S3/Redis),
+metadata — in SQLite. File key is wrapped with
+recipients' public keys.
+end note
+@enduml

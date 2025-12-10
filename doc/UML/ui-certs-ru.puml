@@ -1,0 +1,10 @@
+@startuml
+!include plantuml.conf
+skinparam defaultFontName "DejaVu Sans, Noto Sans, Arial"
+
+rectangle "Сертификаты" {
+  rectangle "Действия:\n[ Запросить ] [ Перевыпустить ] [ Отозвать ]" as Actions
+  rectangle "Таблица:\nИмя | Серийный | Профиль | Статус | Дата\nuser1 | 01AB... | подпись | выдан | 2025-01-01\nuser2 | 02BC... | VPN | истекает | 2025-02-01\nuser3 | 03CD... | шифр | отозван | 2024-12-01" as Table
+}
+
+@enduml

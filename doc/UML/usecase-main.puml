@@ -1,0 +1,42 @@
+@startuml
+!include plantuml.conf
+left to right direction
+
+actor "Administrator" as Admin
+actor "Security Officer" as Officer
+actor "User" as User
+actor "Auditor" as Auditor
+
+rectangle "System" {
+  usecase "UC-01 Issue certificate\n(CSR/server-side generation)" as UC01
+  usecase "UC-02 Revoke certificate\n(update CRL)" as UC02
+  usecase "UC-03 Reissue/renew certificate\n(new serial/dates)" as UC03
+  usecase "UC-04 Download chain/CRL" as UC04
+  usecase "UC-05 Encrypt file\n(to recipients' keys)" as UC05
+  usecase "UC-06 Decrypt file\n(with own key)" as UC06
+  usecase "UC-07 Manage users\nand roles" as UC07
+  usecase "UC-08 Configure cert profiles\n(EKU/DN/TTL)" as UC08
+  usecase "UC-09 View audit\nand reports" as UC09
+}
+
+Admin --> UC07
+Admin --> UC08
+Admin --> UC09
+Admin --> UC04
+
+Officer --> UC01
+Officer --> UC02
+Officer --> UC03
+Officer --> UC08
+Officer --> UC09
+Officer --> UC04
+
+User --> UC01
+User --> UC03
+User --> UC04
+User --> UC05
+User --> UC06
+
+Auditor --> UC09
+Auditor --> UC04
+@enduml

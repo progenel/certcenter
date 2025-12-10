@@ -1,0 +1,42 @@
+@startuml
+!include plantuml.conf
+left to right direction
+
+actor "Администратор" as Admin
+actor "Офицер безопасности" as Officer
+actor "Пользователь" as User
+actor "Аудитор" as Auditor
+
+rectangle "Система сертификатов и шифрования" {
+  usecase "Выпуск сертификата\n(CSR или генерация ключа)" as Issue
+  usecase "Перевыпуск/продление\nсертификата" as Renew
+  usecase "Отзыв сертификата\n(обновление CRL)" as Revoke
+  usecase "Скачивание цепочки/CRL" as Download
+  usecase "Шифрование файла\n(envelope/прямое)" as Encrypt
+  usecase "Расшифрование файла" as Decrypt
+  usecase "Настройка профилей\n(EKU, сроки, DN)" as Profiles
+  usecase "Управление пользователями\nи ролями" as Users
+  usecase "Просмотр аудита" as Audit
+}
+
+Admin --> Users
+Admin --> Profiles
+Admin --> Audit
+Admin --> Download
+
+Officer --> Issue
+Officer --> Renew
+Officer --> Revoke
+Officer --> Profiles
+Officer --> Audit
+Officer --> Download
+
+User --> Issue
+User --> Renew
+User --> Download
+User --> Encrypt
+User --> Decrypt
+
+Auditor --> Audit
+Auditor --> Download
+@enduml

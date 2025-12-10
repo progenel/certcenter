@@ -1,0 +1,10 @@
+@startuml
+!include plantuml.conf
+skinparam defaultFontName "DejaVu Sans, Noto Sans, Arial"
+
+rectangle "Encryption / Decryption" {
+  rectangle "Encrypt:\n[ Choose file ]\nRecipients: [ Ivanov, Petrov ]\n[ ] Only my key\n[ Encrypt ]\nResult: [ Download encrypted file ]" as Encrypt
+  rectangle "Decrypt:\n[ Choose package ]\n[ Decrypt ]\nResult: [ Download decrypted file ]" as Decrypt
+}
+
+@enduml

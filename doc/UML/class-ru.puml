@@ -1,0 +1,105 @@
+@startuml
+!include plantuml.conf
+hide circle
+
+class "Пользователь" as User {
+  +id: строка
+  +username: строка
+  +ФИО: строка
+  +hash пароля: строка
+  +активен: bool
+  +создан: datetime
+}
+
+class "Роль" as Role {
+  +id: строка
+  +имя: строка
+  +описание: строка
+}
+
+class "Связь пользователь-роль" as UserRole {
+  +user_id: строка
+  +role_id: строка
+}
+
+class "Сертификат" as Certificate {
+  +id: строка
+  +serial: строка
+  +user_id: строка
+  +профиль: строка
+  +статус: строка
+  +pem: текст
+  +создан: datetime
+  +отозван: datetime
+}
+
+class "Файл/артефакт" as Artifact {
+  +id: строка
+  +вид: строка
+  +путь: строка
+  +описание: строка
+  +создан: datetime
+  +owner_user_id: строка
+}
+
+class "Конверт" as Envelope {
+  +id: строка
+  +имя_файла: строка
+  +получатели: текст
+  +путь: строка
+  +direct_encrypt: bool
+  +создан: datetime
+}
+
+class "Ключ конверта" as EnvelopeKey {
+  +id: строка
+  +envelope_id: строка
+  +recipient_user_id: строка
+  +recipient_serial: строка
+  +recipient_label: строка
+  +encrypted_key_b64: текст
+}
+
+class "Публичный ключ" as UserPublicKey {
+  +id: строка
+  +user_id: строка
+  +pem: текст
+  +label: строка
+  +is_active: bool
+  +создан: datetime
+}
+
+class "Заявка на сертификат" as CertRequest {
+  +id: строка
+  +user_id: строка
+  +profile: строка
+  +csr_pem: текст
+  +status: строка
+  +comment: текст
+  +created_at: datetime
+}
+
+class "Аудит" as AuditEvent {
+  +id: строка
+  +actor: строка
+  +action: строка
+  +object_type: строка
+  +object_id: строка
+  +details: текст
+  +created_at: datetime
+}
+
+User "1" -- "many" UserRole
+Role "1" -- "many" UserRole
+User "1" -- "many" Certificate
+User "1" -- "many" Envelope : шифрует >
+User "1" -- "many" UserPublicKey : публикует >
+User "1" -- "many" CertRequest : запрашивает >
+Certificate "1" -- "many" Artifact : публикует >
+Envelope "1" -- "many" Artifact : сохраняет >
+Envelope "1" -- "many" EnvelopeKey : ключи для получателей >
+EnvelopeKey .. User : принадлежит получателю >
+AuditEvent .. User : субъект
+AuditEvent .. Certificate : объект
+AuditEvent .. Envelope : объект
+@enduml

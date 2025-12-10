@@ -1,0 +1,105 @@
+@startuml
+!include plantuml.conf
+hide circle
+
+class User {
+  +id: string
+  +username: string
+  +full_name: string
+  +password_hash: string
+  +is_active: bool
+  +created_at: datetime
+}
+
+class Role {
+  +id: string
+  +name: string
+  +description: string
+}
+
+class UserRole {
+  +user_id: string
+  +role_id: string
+}
+
+class Certificate {
+  +id: string
+  +serial: string
+  +user_id: string
+  +profile: string
+  +status: string
+  +pem: text
+  +created_at: datetime
+  +revoked_at: datetime
+}
+
+class Artifact {
+  +id: string
+  +kind: string
+  +url: string
+  +description: string
+  +created_at: datetime
+  +owner_user_id: string
+}
+
+class Envelope {
+  +id: string
+  +filename: string
+  +recipients: text
+  +storage_url: string
+  +direct_encrypt: bool
+  +created_at: datetime
+}
+
+class EnvelopeKey {
+  +id: string
+  +envelope_id: string
+  +recipient_user_id: string
+  +recipient_serial: string
+  +recipient_label: string
+  +encrypted_key_b64: text
+}
+
+class UserPublicKey {
+  +id: string
+  +user_id: string
+  +pem: text
+  +label: string
+  +is_active: bool
+  +created_at: datetime
+}
+
+class CertRequest {
+  +id: string
+  +user_id: string
+  +profile: string
+  +csr_pem: text
+  +status: string
+  +comment: text
+  +created_at: datetime
+}
+
+class AuditEvent {
+  +id: string
+  +actor: string
+  +action: string
+  +object_type: string
+  +object_id: string
+  +details: text
+  +created_at: datetime
+}
+
+User "1" -- "many" UserRole
+Role "1" -- "many" UserRole
+User "1" -- "many" Certificate
+User "1" -- "many" Envelope : encrypts >
+User "1" -- "many" UserPublicKey : publishes >
+User "1" -- "many" CertRequest : requests >
+Certificate "1" -- "many" Artifact : publishes >
+Envelope "1" -- "many" Artifact : stores >
+Envelope "1" -- "many" EnvelopeKey : keys >
+EnvelopeKey ..> User : recipient
+AuditEvent ..> User : actor
+AuditEvent ..> Certificate : object
+AuditEvent ..> Envelope : object
+@enduml

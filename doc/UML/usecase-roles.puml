@@ -1,0 +1,55 @@
+@startuml
+!include plantuml.conf
+left to right direction
+
+actor "Administrator" as Admin
+actor "Security Officer" as Officer
+actor "User" as User
+actor "Auditor" as Auditor
+
+rectangle "Administrator" as UCAdmin {
+  usecase "Manage users\nand roles" as UCUsers
+  usecase "Configure profiles\n(EKU, DN, validity)" as UCProfiles
+  usecase "Configure environment\n(storage/LDAP)" as UCEnv
+  usecase "View audit" as UCAuditAdmin
+}
+
+rectangle "Security Officer" as UCOfficer {
+  usecase "Issue certificate\n(CSR/key generation)" as UCIssue
+  usecase "Reissue/renew\ncertificate" as UCRenew
+  usecase "Revoke certificate\n(update CRL)" as UCRevoke
+  usecase "Publish chain/CRL" as UCPublish
+  usecase "View audit\n(crypto operations)" as UCAuditOfficer
+}
+
+rectangle "User" as UCUser {
+  usecase "Submit request\nfor certificate" as UCRequest
+  usecase "Download\nchain/CRL" as UCDownload
+  usecase "Encrypt file\n(envelope/direct)" as UCEncrypt
+  usecase "Decrypt file" as UCDecrypt
+}
+
+rectangle "Auditor" as UCAud {
+  usecase "View event log" as UCAuditView
+  usecase "Check availability\nof CRL/chain" as UCCheck
+}
+
+Admin --> UCUsers
+Admin --> UCProfiles
+Admin --> UCEnv
+Admin --> UCAuditAdmin
+
+Officer --> UCIssue
+Officer --> UCRenew
+Officer --> UCRevoke
+Officer --> UCPublish
+Officer --> UCAuditOfficer
+
+User --> UCRequest
+User --> UCDownload
+User --> UCEncrypt
+User --> UCDecrypt
+
+Auditor --> UCAuditView
+Auditor --> UCCheck
+@enduml

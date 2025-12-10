@@ -1,0 +1,55 @@
+@startuml
+!include plantuml.conf
+left to right direction
+
+actor "Администратор" as Admin
+actor "Офицер безопасности" as Officer
+actor "Пользователь" as User
+actor "Аудитор" as Auditor
+
+rectangle "Администратор" as UCAdmin {
+  usecase "Управление пользователями\nи ролями" as UCUsers
+  usecase "Настройка профилей\n(EKU, DN, сроки)" as UCProfiles
+  usecase "Настройка окружения\n(хранилище/LDAP)" as UCEnv
+  usecase "Просмотр аудита" as UCAuditAdmin
+}
+
+rectangle "Офицер безопасности" as UCOfficer {
+  usecase "Выпуск сертификата\n(CSR/генерация ключа)" as UCIssue
+  usecase "Перевыпуск/продление\nсертификата" as UCRenew
+  usecase "Отзыв сертификата\n(обновление CRL)" as UCRevoke
+  usecase "Публикация цепочки/CRL" as UCPublish
+  usecase "Просмотр аудита\n(криптооперации)" as UCAuditOfficer
+}
+
+rectangle "Пользователь" as UCUser {
+  usecase "Отправка заявки\nна сертификат" as UCRequest
+  usecase "Скачивание\nцепочки/CRL" as UCDownload
+  usecase "Шифрование файла\n(envelope/прямое)" as UCEncrypt
+  usecase "Расшифрование файла" as UCDecrypt
+}
+
+rectangle "Аудитор" as UCAud {
+  usecase "Просмотр журнала событий" as UCAuditView
+  usecase "Проверка доступности\nCRL/цепочки" as UCCheck
+}
+
+Admin --> UCUsers
+Admin --> UCProfiles
+Admin --> UCEnv
+Admin --> UCAuditAdmin
+
+Officer --> UCIssue
+Officer --> UCRenew
+Officer --> UCRevoke
+Officer --> UCPublish
+Officer --> UCAuditOfficer
+
+User --> UCRequest
+User --> UCDownload
+User --> UCEncrypt
+User --> UCDecrypt
+
+Auditor --> UCAuditView
+Auditor --> UCCheck
+@enduml

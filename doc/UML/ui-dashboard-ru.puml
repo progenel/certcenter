@@ -1,0 +1,10 @@
+@startuml
+!include plantuml.conf
+skinparam defaultFontName "DejaVu Sans, Noto Sans, Arial"
+
+rectangle "Дашборд" {
+  rectangle "Карточки:\n- Сертификаты\n- Цепочка/CRL\n- Шифрование\n- Аудит\n- Справка" as Cards
+  rectangle "Быстрый старт:\n1) Получить сертификат → [Запросить]\n2) Скачать цепочку/CRL\n3) Зашифровать файл" as Quick
+}
+
+@enduml

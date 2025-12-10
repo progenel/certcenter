@@ -1,0 +1,96 @@
+:toc-title: Содержание
+= API
+:toc:
+:doctype: article
+
+== Аутентификация
+* Локальный логин JWT: `POST /api/auth/login` (username/password → Bearer токен). Роли: admin, officer, user.
+* Все защищенные ручки требуют `Authorization: Bearer <token>`.
+
+== Сертификаты
+* `GET /api/certs` — список сертификатов.
+* `POST /api/certs` — выпуск (офицер/админ): профиль, CSR или server-side генерация (PKCS#12), subject.
+* `POST /api/certs/{id}/renew` — перевыпуск (офицер/админ).
+* `POST /api/certs/{id}/revoke` — отзыв (офицер/админ) + пересборка CRL.
+* `GET /api/certs/{id}` — сертификат по id.
+
+== Заявки на сертификаты
+* `POST /api/requests/certs` — подать заявку (user).
+* `GET /api/requests/certs` — список заявок (user — свои, officer/admin — все).
+* `POST /api/requests/certs/{id}/approve` — одобрить и выдать сертификат (officer/admin).
+* `POST /api/requests/certs/{id}/reject` — отклонить (officer/admin).
+
+== Цепочка и CRL (файлы/артефакты)
+* `GET /api/artifacts` — список доступных файлов (публичные + свои).
+* `GET /api/artifacts/{id}/download` — скачать (авторизация: владелец или публичный).
+  * chain — цепочка CA (PEM, публичный файл).
+  * crl — актуальный CRL (публичный файл).
+
+== Статус сертификата
+* `GET /api/status/{serial}` — статус cert (good/revoked/unknown) по CRL (OCSP — последующий этап).
+
+== Шифрование файлов (envelope)
+* `POST /api/envelope` — загрузить файл, указать получателей (username или serial cert/метка ключа). Генерируется AES-GCM, ключ оборачивается публичными ключами получателей (RSA-OAEP).
+* `GET /api/envelope/{id}` — метаданные пакета (получатели, ключи).
+* `GET /api/envelope/{id}/download` — скачать зашифрованный файл (получатели/офицер/админ).
+* `POST /api/envelope/{id}/decrypt` — расшифровать: передать свой закрытый ключ (PEM, опциональный пароль) и серийный номер/метку ключа.
+
+== Артефакты
+* `GET /api/artifacts` — список пакетов/CRL/chain (ссылки из БД).
+* `GET /api/artifacts/{id}/download` — скачивание (локальное хранилище файлов).
+
+== Публичные ключи пользователей
+* `GET /api/users/me/public-key` — получить активный публичный ключ (PEM) текущего пользователя.
+* `POST /api/users/me/public-key` — сохранить новый публичный ключ (старые деактивируются).
+
+== Пользователи и роли
+* `GET /api/users` — список пользователей (только администратор).
+* Демонстрационные роли создаются на старте (admin/officer/user). Управление ролями — в планах.
+
+== Примеры запросов (curl)
+
+Аутентификация и получение токена:
+[source,bash]
+----
+curl -X POST http://localhost:8000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"user","password":"user"}'
+# => {"access_token":"<JWT>","token_type":"bearer"}
+----
+
+Отправка заявки на сертификат (профиль подписи):
+[source,bash]
+----
+curl -X POST http://localhost:8000/api/requests/certs \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"profile":"подпись","csr_pem":null,"comment":"Нужен для ЭДО"}'
+----
+
+Шифрование файла на двух получателей (их username или serial):
+[source,bash]
+----
+FILE_B64=$(base64 -w0 sample.txt)
+curl -X POST http://localhost:8000/api/envelope \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"filename":"sample.txt","content_b64":"'"$FILE_B64"'","recipients":["user","officer"]}'
+# => {"id":"...","download_url":"/api/envelope/...","recipients":["user","officer"],"keys":[...]}
+----
+
+Скачивание конверта:
+[source,bash]
+----
+curl -OJ http://localhost:8000/api/envelope/<id>/download \
+  -H "Authorization: Bearer $TOKEN"
+----
+
+Расшифровка конверта своим закрытым ключом:
+[source,bash]
+----
+curl -X POST http://localhost:8000/api/envelope/<id>/decrypt \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"recipient_serial":"<serial_or_label>","private_key_pem":"-----BEGIN PRIVATE KEY-----...","private_key_password":null}'
+# => {"content_b64":"..."}  # декодировать base64 в файл
+----

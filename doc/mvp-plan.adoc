@@ -1,0 +1,62 @@
+:toc-title: Содержание
+= План реализации MVP
+:toc:
+:doctype: article
+
+== Минимальный функционал
+* Сертификаты: выпуск (CSR/серверная генерация + PKCS#12), перевыпуск, отзыв, публикация цепочки и CRL.
+* Статус: выдача статуса по CRL (OCSP опционально).
+* Envelope-шифрование: шифрование/расшифрование, прямое шифрование для одного получателя (опционально).
+* Аутентификация: локальные учетные записи (MVP), LDAP/AD — опционально.
+* Артефакты: загрузка/скачивание цепочек/CRL/пакетов.
+* Аудит: запись основных операций.
+
+== Этапы
+1) Базовый каркас API (FastAPI), модели и схемы запрос/ответ.
+2) CA core: issuer (заглушки), модели сертификатов, метаданные в SQLite.
+3) CRL: генерация/публикация в S3 (локально — minio), статус по CRL.
+4) Envelope: сервис шифрования (AES-GCM), обертка ключей, хранение пакетов в S3.
+5) Auth/RBAC: локальные пользователи/роли, простая авторизация.
+6) Артефакты: эндпоинты для цепочки/CRL/пакетов.
+7) Аудит: запись событий в БД.
+
+== Быстрые задачи для старта
+* Описать Pydantic-схемы для cert/envelope/пользователей.
+* Подготовить базовые роуты (без реализации): /api/certs, /api/envelope, /api/status, /api/artifacts, /api/auth.
+* Настроить конфигурацию (settings) для SQLite/minio/Redis/PKCS#11, поддержка .env.
+* Добавить docker-compose для minio + (опционально) Redis.
+
+== Артефакты для проверки
+* OpenAPI-спека генерируется и отражает перечисленные эндпоинты.
+* CRL/chain доступны из S3 (minio) после заглушечного выпуска.
+* Шифрование/расшифрование отрабатывают на тестовом файле для одного и нескольких получателей.
+
+== Backlog (детализированный)
+* Репозиторий/структура
+** Создать базовый каркас FastAPI (`main.py`, routers, models, settings).
+** Добавить зависимости в requirements/constraints.
+** Настроить .env.example с параметрами SQLite, minio, Redis, PKCS#11.
+* Certs/CA
+** Pydantic-схемы: CertRequest (CSR/серверная генерация), CertResponse, StatusResponse.
+** Маршруты: /api/certs (issue), /api/certs/{id}/renew, /api/certs/{id}/revoke, /api/certs/{id}.
+** Модели в БД: Certificates (serial, status, profile, user, links).
+** Заглушка Issuer (sign self-signed for demo), запись артефактов в S3 (mock).
+** Генерация CRL (заглушка), публикация в S3.
+* Chain/CRL/Status
+** /api/chain, /api/crl, /api/status/{serial} (CRL lookup).
+* Envelope
+** Pydantic-схемы: EnvelopeRequest (recipients/users/certs), EnvelopeResponse (link).
+** Маршруты: /api/envelope (encrypt), /api/envelope/{id} (download), /api/envelope/{id}/decrypt.
+** Сервис шифрования AES-GCM, direct encrypt для одного получателя, хранение пакета в S3, метаданные в БД.
+* Auth/RBAC
+** Локальные пользователи в SQLite (MVP), роли в таблице Roles/UserRoles.
+** Маршруты: /api/auth/login (заглушка), dependency для проверки роли.
+* Артефакты
+** /api/artifacts, /api/artifacts/{id} — метаданные + ссылки на S3.
+* Аудит
+** Таблица AuditEvents, запись операций cert/envelope/auth.
+* Ops
+** Docker-compose: app, minio, (опционально) Redis; init-скрипт для minio buckets.
+** Makefile/скрипты для запуска сервиса и линтов.
+* Документация
+** Обновить OpenAPI (автоген), добавить инструкции в README по запуску MVP.

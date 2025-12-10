@@ -1,0 +1,10 @@
+@startuml
+!include plantuml.conf
+skinparam defaultFontName "DejaVu Sans, Noto Sans, Arial"
+
+rectangle "Шифрование / Расшифрование" {
+  rectangle "Зашифровать:\n[ Выбрать файл ]\nПолучатели: [ Иванов, Петров ]\n[ ] Только мой ключ\n[ Зашифровать ]\nРезультат: [ Скачать зашифрованный файл ]" as Encrypt
+  rectangle "Расшифровать:\n[ Выбрать пакет ]\n[ Расшифровать ]\nРезультат: [ Скачать расшифрованный файл ]" as Decrypt
+}
+
+@enduml

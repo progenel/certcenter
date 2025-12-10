@@ -1,0 +1,29 @@
+@startuml
+!include plantuml.conf
+title Последовательность: Шифрование/Расшифровка конверта
+
+actor "Пользователь" as User
+participant "UI/CLI" as UI
+participant "API (FastAPI)" as API
+participant "Крипто (AES-GCM)" as Crypto
+participant "БД" as DB
+participant "Хранилище (локально)" as Storage
+
+== Шифрование ==
+User -> UI : Загружает файл, выбирает получателей\n(логины/серийные номера/метки ключей)
+UI -> API : POST /api/envelope (файл, получатели)
+API -> Crypto : Генерация AES-GCM ключа и nonce,\nшифрование файла
+API -> Crypto : Обертка AES-ключа публичными ключами получателей (RSA-OAEP)
+Crypto -> Storage : Сохранить nonce+ciphertext
+API -> DB : Сохранить метаданные и ключи по получателям
+API -> User : Вернуть id, ссылки и список ключей
+
+== Расшифровка ==
+User -> UI : Запрашивает метаданные конверта
+UI -> API : GET /api/envelope/{id}
+User -> UI : Передает приватный ключ (PEM) и серийный номер/метку
+UI -> API : POST /api/envelope/{id}/decrypt
+API -> DB : Найти зашифрованный ключ для получателя
+API -> Crypto : Расшифровать AES-ключ приватным ключом,\nраскрыть файл (AES-GCM)
+API -> User : Вернуть контент (base64)
+@enduml

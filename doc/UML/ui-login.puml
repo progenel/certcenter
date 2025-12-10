@@ -1,0 +1,8 @@
+@startuml
+!include plantuml.conf
+skinparam defaultFontName "DejaVu Sans, Noto Sans, Arial"
+
+rectangle "Login\n\nUsername: [______________]\nPassword: [______________]\n[ Sign in ]\nForgot password?\nHint: access is granted by admin" as Login {
+}
+
+@enduml

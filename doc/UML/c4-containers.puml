@@ -1,0 +1,56 @@
+@startuml
+!include plantuml.conf
+title C4: Container Diagram
+
+actor "Admin/Officer" as Admin
+actor "User" as User
+actor "Auditor" as Auditor
+
+package "External" {
+  rectangle "LDAP/AD" as LDAP
+  rectangle "OpenVPN" as VPN
+  rectangle "SIEM/Alerts" as SIEM
+}
+
+package "UI/CLI" {
+  rectangle "Web UI" as UI
+  rectangle "CLI" as CLI
+}
+
+node "API (FastAPI)" as API
+node "CA Core" as CA {
+  component "Issuer\n(CA/CRL)" as Issuer
+  component "Policy Engine" as Policy
+  component "Audit Logger" as Audit
+}
+
+node "Crypto/Envelope" as Crypto
+
+node "Storage" as Storage {
+  database "SQLite" as DB
+  folder "Local files\n(CRL/chain/packages)" as Files
+}
+
+Admin --> UI : Manage users/roles\nCert policies
+User --> UI : Request cert\nEncrypt/Decrypt
+Auditor --> UI : View audit
+Admin --> CLI
+User --> CLI
+
+UI --> API
+CLI --> API
+
+API --> Issuer : Issue/Revoke/Renew
+API --> Policy
+API --> Audit
+API --> Crypto : Encrypt/Decrypt
+API --> DB : Metadata
+API --> LDAP : Auth (optional in MVP)
+API --> SIEM : Events (optional)
+VPN --> API : Fetch chain/CRL
+
+Crypto --> Files : Store packages
+Issuer --> Files : Upload chain/CRL
+API --> Files : Download chain/CRL
+
+@enduml

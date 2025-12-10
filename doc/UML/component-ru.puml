@@ -1,0 +1,45 @@
+@startuml
+!include plantuml.conf
+skinparam linetype ortho
+
+rectangle "UI/CLI" as UI {
+  [Веб-портал]
+  [CLI]
+}
+
+rectangle "API (FastAPI)" as API {
+  [Certs API]
+  [Envelope API]
+  [Artifacts API]
+  [Auth/Audit API]
+}
+
+rectangle "CA Core" as CA {
+  [Issuer/CRL\n(soft-HSM/PKCS#11)]
+  [Policy/DN/EKU]
+  [Audit]
+}
+
+rectangle "Crypto" as ENC {
+  [Шифрование/дешифрование\nпубличный/приватный ключ]
+}
+
+database "SQLite\n(метаданные)" as DB
+folder "Локальное хранилище\nартефактов" as Storage
+
+UI --> API : HTTP/JSON
+CLI --> API : HTTP/JSON
+API --> CA : внутренние вызовы
+API --> ENC : encrypt/decrypt
+API --> DB : SQL
+API --> Storage : файлы (CRL/chain/зашифрованные файлы)
+CA --> DB : статусы, сертификаты
+CA --> Storage : CRL/chain
+ENC --> Storage : зашифрованные файлы
+
+note bottom
+В MVP артефакты хранятся локально (без S3/Redis),
+метаданные — в SQLite. Ключ файла оборачивается
+публичными ключами получателей.
+end note
+@enduml

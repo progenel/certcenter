@@ -1,0 +1,29 @@
+@startuml
+!include plantuml.conf
+title Sequence: Issue Certificate (server-side key)
+
+actor User
+participant "UI/CLI" as UI
+participant "API (FastAPI)" as API
+participant "Policy Engine" as Policy
+participant "Issuer (CA)" as Issuer
+participant "DB" as DB
+participant "Storage (local)" as Storage
+participant "CRL Service" as CRL
+
+User -> UI : Request cert (profile, CN)
+UI -> API : POST /api/certs
+API -> Policy : Validate profile, user, TTL, EKU
+API -> Issuer : Generate keypair (server-side) if needed\nCreate CSR, sign cert
+Issuer -> Storage : Save PEM (and PKCS#12 when generated)
+API -> DB : Save metadata (serial, owner, links)
+API -> User : Return serial and links to PEM/P12
+
+== Revocation ==
+User -> UI : Request revoke
+UI -> API : POST /api/certs/{id}/revoke
+API -> DB : Mark revoked
+API -> CRL : Rebuild CRL
+CRL -> Storage : Save updated CRL
+API -> User : Revoke confirmed
+@enduml

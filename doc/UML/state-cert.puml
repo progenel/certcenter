@@ -1,0 +1,40 @@
+@startuml
+!include plantuml.conf
+
+[*] --> Requested
+Requested --> Issued : approve & sign
+Requested --> Rejected : policy failed
+Issued --> Reissued : renew/reissue
+Issued --> Revoked : revoke
+Issued --> Expired : notAfter reached
+Reissued --> Issued : new cert active
+Reissued --> Revoked : revoke new cert
+Reissued --> Expired : notAfter reached
+Revoked --> [*]
+Expired --> [*]
+Rejected --> [*]
+
+note right of Requested
+  Request created,\nwaiting for issuance
+end note
+
+note right of Issued
+  Active certificate\n(used by clients)
+end note
+
+note right of Reissued
+  New cert issued,\nold may be revoked separately
+end note
+
+note right of Revoked
+  In CRL, untrusted
+end note
+
+note right of Expired
+  NotAfter reached
+end note
+
+note right of Rejected
+  Policy failed
+end note
+@enduml
