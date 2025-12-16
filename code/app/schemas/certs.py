@@ -31,6 +31,7 @@ class CertResponse(BaseModel):
     profile: str
     pem: Optional[str] = None
     created_at: datetime
+    user_id: Optional[str] = None
 
 
 class RevokeRequest(BaseModel):

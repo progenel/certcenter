@@ -130,3 +130,31 @@ class CertRequest(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     user = relationship("User", back_populates="cert_requests")
+
+
+class Message(Base):
+    __tablename__ = "messages"
+
+    id = Column(String, primary_key=True)
+    sender_user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    subject = Column(String, nullable=True)
+    recipients = Column(Text, nullable=False)  # comma-separated for MVP
+    storage_url = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    sender = relationship("User")
+    keys = relationship("MessageKey", back_populates="message")
+
+
+class MessageKey(Base):
+    __tablename__ = "message_keys"
+
+    id = Column(String, primary_key=True)
+    message_id = Column(String, ForeignKey("messages.id"), nullable=False)
+    recipient_user_id = Column(String, ForeignKey("users.id"), nullable=True)
+    recipient_serial = Column(String, nullable=True)
+    recipient_label = Column(String, nullable=True)
+    encrypted_key_b64 = Column(Text, nullable=False)
+
+    message = relationship("Message", back_populates="keys")
+    recipient_user = relationship("User")

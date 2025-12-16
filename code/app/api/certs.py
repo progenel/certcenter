@@ -19,7 +19,8 @@ from app.ca import (
 )
 from app.crl import build_crl, write_crl
 from cryptography.x509 import load_pem_x509_crl
-from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives import serialization, hashes
+from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
 router = APIRouter(prefix="/api/certs", tags=["certs"])
 settings = get_settings()
@@ -50,16 +51,19 @@ def _issue_cert_internal(
     else:
         key = None
     signed_cert = build_and_sign_cert(builder, public_key, CA_KEY)
+    fp_hasher = hashes.Hash(hashes.SHA256())
+    fp_hasher.update(public_key.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo))
+    pubkey_fp = fp_hasher.finalize().hex()
     pem_bytes = signed_cert.public_bytes(serialization.Encoding.PEM)
-    pem_path = Path(settings.artifacts_path) / f"{cert_id}.pem"
+    pem_path = Path(settings.artifacts_path) / f"{pubkey_fp}.pem"
     pem_path.write_bytes(pem_bytes)
     p12_path = None
     key_path = None
     if payload.generate_key and key:
         p12_bytes = create_pkcs12(cert_id, signed_cert, key)
-        p12_path = Path(settings.artifacts_path) / f"{cert_id}.p12"
+        p12_path = Path(settings.artifacts_path) / f"{pubkey_fp}.p12"
         p12_path.write_bytes(p12_bytes)
-        key_path = Path(settings.artifacts_path) / f"{cert_id}-key.pem"
+        key_path = Path(settings.artifacts_path) / f"{pubkey_fp}-key.pem"
         key_path.write_bytes(
             key.private_bytes(
                 encoding=serialization.Encoding.PEM,
@@ -82,7 +86,7 @@ def _issue_cert_internal(
             id=str(uuid4()),
             kind="cert-pem",
             url=str(pem_path),
-            description="Certificate PEM",
+            description=f"Certificate PEM for {cert_id} serial {cert.serial}",
             owner_user_id=owner_user_id or actor.id if actor else None,
             created_at=datetime.utcnow(),
         )
@@ -93,7 +97,7 @@ def _issue_cert_internal(
                 id=str(uuid4()),
                 kind="p12",
                 url=str(p12_path),
-                description="PKCS#12 bundle",
+                description=f"PKCS#12 bundle for {cert_id} serial {cert.serial}",
                 owner_user_id=owner_user_id or actor.id if actor else None,
                 created_at=datetime.utcnow(),
             )
@@ -104,7 +108,7 @@ def _issue_cert_internal(
                 id=str(uuid4()),
                 kind="key-pem",
                 url=str(key_path),
-                description="Private key PEM (server-side generation)",
+                description=f"Private key PEM for {cert_id} serial {cert.serial}",
                 owner_user_id=owner_user_id or actor.id if actor else None,
                 created_at=datetime.utcnow(),
             )
@@ -118,6 +122,7 @@ def _issue_cert_internal(
         profile=cert.profile,
         pem=cert.pem,
         created_at=cert.created_at,
+        user_id=cert.user_id,
     )
 
 
@@ -132,6 +137,7 @@ def list_certs(db: Session = Depends(get_db)) -> list[CertResponse]:
             profile=c.profile,
             pem=c.pem,
             created_at=c.created_at,
+            user_id=c.user_id,
         )
         for c in certs
     ]
@@ -162,6 +168,7 @@ def renew_cert(cert_id: str, payload: CertRequest, user=Depends(require_token), 
         profile=cert.profile,
         pem=cert.pem,
         created_at=cert.created_at,
+        user_id=cert.user_id,
     )
 
 
@@ -217,6 +224,7 @@ def get_cert(cert_id: str, db: Session = Depends(get_db)) -> CertResponse:
         profile=cert.profile,
         pem=cert.pem,
         created_at=cert.created_at,
+        user_id=cert.user_id,
     )
 
 

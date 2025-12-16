@@ -3,7 +3,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from app.api import artifacts, auth, certs, envelope, status, users, requests
+from app.api import artifacts, auth, certs, envelope, status, users, requests, messages
 from app.config import get_settings
 from app.db import Base, SessionLocal, engine
 from app.models import Role, User, UserRole, Artifact
@@ -30,6 +30,7 @@ def create_app() -> FastAPI:
     app.include_router(auth.router)
     app.include_router(users.router)
     app.include_router(requests.router)
+    app.include_router(messages.router)
     app.mount("/ui", StaticFiles(directory=static_dir, html=True), name="ui")
 
     @app.middleware("http")

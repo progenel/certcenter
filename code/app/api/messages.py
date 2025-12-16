@@ -1,34 +1,27 @@
 import base64
 import os
-import hashlib
 from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import FileResponse
-from sqlalchemy.orm import Session
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-from cryptography.hazmat.primitives.asymmetric import padding
-from cryptography.hazmat.primitives import hashes, serialization
 from cryptography import x509
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import or_
+from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.db import get_db
 from app.deps import require_token
-from app.models import Artifact, Envelope, EnvelopeKey, User, Certificate, UserPublicKey
-from app.schemas.envelope import (
-    DecryptRequest,
-    EnvelopeMetadata,
-    EnvelopeRequest,
-    EnvelopeResponse,
-    EncryptedKey,
-)
+from app.models import Certificate, Message, MessageKey, User, UserPublicKey
+from app.schemas.messages import MessageDecryptRequest, MessageMeta, MessageResponse, MessageSendRequest
 
-router = APIRouter(prefix="/api/envelope", tags=["envelope"])
+router = APIRouter(prefix="/api/messages", tags=["messages"])
 settings = get_settings()
 
-AES_KEY_LEN = 32  # 256-bit
+AES_KEY_LEN = 32
 NONCE_LEN = 12
 
 
@@ -89,15 +82,12 @@ def _resolve_recipient(recipient: str, db: Session) -> dict:
     }
 
 
-def _ensure_env_access(env: Envelope, user: User, db: Session) -> None:
-    if user.username in ("admin", "officer"):
-        return
-    tokens = [t.strip() for t in (env.recipients or "").split(",") if t.strip()]
-    if user.username in tokens:
+def _ensure_message_access(msg: Message, user: User, db: Session) -> None:
+    if user.username in ("admin", "officer") or msg.sender_user_id == user.id:
         return
     has_key = (
-        db.query(EnvelopeKey)
-        .filter(EnvelopeKey.envelope_id == env.id, EnvelopeKey.recipient_user_id == user.id)
+        db.query(MessageKey)
+        .filter(MessageKey.message_id == msg.id, MessageKey.recipient_user_id == user.id)
         .first()
         is not None
     )
@@ -105,41 +95,31 @@ def _ensure_env_access(env: Envelope, user: User, db: Session) -> None:
         raise HTTPException(status_code=403, detail="Forbidden")
 
 
-@router.post("", response_model=EnvelopeResponse, dependencies=[Depends(require_token)])
-def encrypt(payload: EnvelopeRequest, user=Depends(require_token), db: Session = Depends(get_db)) -> EnvelopeResponse:
+@router.post("", response_model=MessageResponse, dependencies=[Depends(require_token)])
+def send_message(payload: MessageSendRequest, user=Depends(require_token), db: Session = Depends(get_db)) -> MessageResponse:
     recipients = [_resolve_recipient(r, db) for r in payload.recipients]
     if not recipients:
         raise HTTPException(status_code=400, detail="Нужен хотя бы один получатель")
-    env_id = str(uuid4())
+    msg_id = str(uuid4())
     key = os.urandom(AES_KEY_LEN)
     nonce = os.urandom(NONCE_LEN)
-    plaintext = base64.b64decode(payload.content_b64)
-    ciphertext = aesgcm_encrypt(plaintext, key, nonce)
-    hash_hex = hashlib.md5(plaintext).hexdigest()
-    storage_path = Path(settings.artifacts_path) / f"{hash_hex}.enc"
+    ciphertext = aesgcm_encrypt(payload.content.encode("utf-8"), key, nonce)
+
+    msg_dir = Path(settings.artifacts_path) / "messages"
+    msg_dir.mkdir(parents=True, exist_ok=True)
+    storage_path = msg_dir / f"{msg_id}.enc"
     storage_path.write_bytes(nonce + ciphertext)
 
-    env = Envelope(
-        id=env_id,
-        filename=payload.filename,
+    msg = Message(
+        id=msg_id,
+        sender_user_id=user.id,
+        subject=payload.subject,
         recipients=",".join([r["label"] for r in recipients]),
         storage_url=str(storage_path),
-        direct_encrypt=False,
         created_at=datetime.utcnow(),
     )
-    db.add(env)
-    # Артефакт для отправителя
-    db.add(
-        Artifact(
-            id=str(uuid4()),
-            kind="envelope",
-            url=str(storage_path),
-            description="Encrypted file (AES-GCM)",
-            owner_user_id=user.id,
-            created_at=datetime.utcnow(),
-        )
-    )
-    key_records: list[EncryptedKey] = []
+    db.add(msg)
+
     for r in recipients:
         public_key = r["public_key"]
         enc_key = public_key.encrypt(
@@ -147,25 +127,10 @@ def encrypt(payload: EnvelopeRequest, user=Depends(require_token), db: Session =
             padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()), algorithm=hashes.SHA256(), label=None),
         )
         enc_key_b64 = base64.b64encode(enc_key).decode("utf-8")
-        key_records.append(
-            EncryptedKey(recipient=r["label"], cert_serial=r["cert_serial"], encrypted_key_b64=enc_key_b64)
-        )
-        # Артефакт для получателя (если user_id известен)
-        if r["user_id"]:
-            db.add(
-                Artifact(
-                    id=str(uuid4()),
-                    kind="envelope",
-                    url=str(storage_path),
-                    description="Encrypted file (AES-GCM)",
-                    owner_user_id=r["user_id"],
-                    created_at=datetime.utcnow(),
-                )
-            )
         db.add(
-            EnvelopeKey(
+            MessageKey(
                 id=str(uuid4()),
-                envelope_id=env_id,
+                message_id=msg_id,
                 recipient_user_id=r["user_id"],
                 recipient_serial=r["cert_serial"],
                 recipient_label=r["label"],
@@ -173,73 +138,76 @@ def encrypt(payload: EnvelopeRequest, user=Depends(require_token), db: Session =
             )
         )
     db.commit()
-    return EnvelopeResponse(
-        id=env.id,
-        download_url=f"/api/envelope/{env.id}",
-        created_at=env.created_at,
+    return MessageResponse(
+        id=msg.id,
+        subject=msg.subject,
+        sender=user.username,
         recipients=[r["label"] for r in recipients],
-        keys=key_records,
-        key_b64=None,
-        nonce_b64=None,
+        created_at=msg.created_at,
     )
 
 
-@router.get("/{env_id}", response_model=EnvelopeMetadata, dependencies=[Depends(require_token)])
-def get_envelope(env_id: str, user=Depends(require_token), db: Session = Depends(get_db)) -> EnvelopeMetadata:
-    env = db.get(Envelope, env_id)
-    if not env:
-        raise HTTPException(status_code=404, detail="Envelope not found")
-    _ensure_env_access(env, user, db)
-    keys_query = db.query(EnvelopeKey).filter(EnvelopeKey.envelope_id == env.id)
+@router.get("", response_model=list[MessageMeta], dependencies=[Depends(require_token)])
+def list_messages(user=Depends(require_token), db: Session = Depends(get_db)) -> list[MessageMeta]:
+    query = db.query(Message)
     if user.username not in ("admin", "officer"):
-        keys_query = keys_query.filter(EnvelopeKey.recipient_user_id == user.id)
-    keys = [
-        EncryptedKey(
-            recipient=k.recipient_label or "",
-            cert_serial=k.recipient_serial or "",
-            encrypted_key_b64=k.encrypted_key_b64,
+        query = query.join(MessageKey, Message.id == MessageKey.message_id, isouter=True).filter(
+            or_(
+                Message.sender_user_id == user.id,
+                MessageKey.recipient_user_id == user.id,
+                Message.recipients.ilike(f"%{user.username}%"),
+            )
         )
-        for k in keys_query.all()
-    ]
-    return EnvelopeMetadata(
-        id=env.id,
-        recipients=env.recipients.split(",") if env.recipients else [],
-        filename=env.filename,
-        created_at=env.created_at,
-        keys=keys,
+    messages = query.order_by(Message.created_at.desc()).all()
+    result: list[MessageMeta] = []
+    for m in messages:
+        sender = db.query(User).filter(User.id == m.sender_user_id).first()
+        result.append(
+            MessageMeta(
+                id=m.id,
+                subject=m.subject,
+                sender=sender.username if sender else None,
+                recipients=m.recipients.split(",") if m.recipients else [],
+                created_at=m.created_at,
+            )
+        )
+    return result
+
+
+@router.get("/{msg_id}", response_model=MessageMeta, dependencies=[Depends(require_token)])
+def get_message(msg_id: str, user=Depends(require_token), db: Session = Depends(get_db)) -> MessageMeta:
+    msg = db.get(Message, msg_id)
+    if not msg:
+        raise HTTPException(status_code=404, detail="Message not found")
+    _ensure_message_access(msg, user, db)
+    sender = db.query(User).filter(User.id == msg.sender_user_id).first()
+    return MessageMeta(
+        id=msg.id,
+        subject=msg.subject,
+        sender=sender.username if sender else None,
+        recipients=msg.recipients.split(",") if msg.recipients else [],
+        created_at=msg.created_at,
     )
 
 
-@router.get("/{env_id}/download", dependencies=[Depends(require_token)])
-def download_encrypted(env_id: str, user=Depends(require_token), db: Session = Depends(get_db)):
-    env = db.get(Envelope, env_id)
-    if not env:
-        raise HTTPException(status_code=404, detail="Envelope not found")
-    _ensure_env_access(env, user, db)
-    path = Path(env.storage_url)
-    if not path.exists():
-        raise HTTPException(status_code=404, detail="File not found")
-    return FileResponse(path, filename=path.name)
-
-
-@router.post("/{env_id}/decrypt")
-def decrypt_env(env_id: str, payload: DecryptRequest, user=Depends(require_token), db: Session = Depends(get_db)) -> dict:
-    env = db.get(Envelope, env_id)
-    if not env:
-        raise HTTPException(status_code=404, detail="Envelope not found")
-    _ensure_env_access(env, user, db)
+@router.post("/{msg_id}/decrypt")
+def decrypt_message(msg_id: str, payload: MessageDecryptRequest, user=Depends(require_token), db: Session = Depends(get_db)) -> dict:
+    msg = db.get(Message, msg_id)
+    if not msg:
+        raise HTTPException(status_code=404, detail="Message not found")
+    _ensure_message_access(msg, user, db)
     key_row = (
-        db.query(EnvelopeKey)
+        db.query(MessageKey)
         .filter(
-            EnvelopeKey.envelope_id == env.id,
-            EnvelopeKey.recipient_serial == payload.recipient_serial,
+            MessageKey.message_id == msg.id,
+            MessageKey.recipient_serial == payload.recipient_serial,
         )
         .first()
     )
     if key_row is None:
         key_row = (
-            db.query(EnvelopeKey)
-            .filter(EnvelopeKey.envelope_id == env.id, EnvelopeKey.recipient_user_id == user.id)
+            db.query(MessageKey)
+            .filter(MessageKey.message_id == msg.id, MessageKey.recipient_user_id == user.id)
             .first()
         )
     if key_row is None:
@@ -248,7 +216,8 @@ def decrypt_env(env_id: str, payload: DecryptRequest, user=Depends(require_token
         raise HTTPException(status_code=403, detail="Forbidden")
     try:
         private_key = serialization.load_pem_private_key(
-            payload.private_key_pem.encode("utf-8"), password=(payload.private_key_password or None).encode("utf-8") if payload.private_key_password else None
+            payload.private_key_pem.encode("utf-8"),
+            password=(payload.private_key_password or None).encode("utf-8") if payload.private_key_password else None,
         )
     except Exception:
         raise HTTPException(status_code=400, detail="Не удалось загрузить закрытый ключ")
@@ -259,7 +228,7 @@ def decrypt_env(env_id: str, payload: DecryptRequest, user=Depends(require_token
         )
     except Exception:
         raise HTTPException(status_code=400, detail="Не удалось расшифровать ключ")
-    path = Path(env.storage_url)
+    path = Path(msg.storage_url)
     if not path.exists():
         raise HTTPException(status_code=404, detail="File not found")
     data = path.read_bytes()
@@ -269,4 +238,4 @@ def decrypt_env(env_id: str, payload: DecryptRequest, user=Depends(require_token
         plaintext = aesgcm_decrypt(ciphertext, aes_key, nonce)
     except Exception:
         raise HTTPException(status_code=400, detail="Decrypt failed")
-    return {"content_b64": base64.b64encode(plaintext).decode("utf-8")}
+    return {"content": plaintext.decode("utf-8", errors="ignore")}
